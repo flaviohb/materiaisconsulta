@@ -18,7 +18,7 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
             background: white;
             border-radius: 8px;
@@ -135,14 +135,14 @@
 
         .table-wrapper {
             overflow-x: auto;
-            max-height: 500px;
+            max-height: 550px;
             overflow-y: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 13px;
+            font-size: 14px;
         }
 
         thead {
@@ -154,12 +154,11 @@
         th {
             background: #424242;
             color: white;
-            padding: 10px 8px;
+            padding: 12px;
             text-align: left;
             font-weight: 600;
             cursor: pointer;
             white-space: nowrap;
-            font-size: 12px;
         }
 
         th:hover {
@@ -175,9 +174,8 @@
         }
 
         td {
-            padding: 8px;
+            padding: 10px 12px;
             border-bottom: 1px solid #e0e0e0;
-            font-size: 12px;
         }
 
         tbody tr:hover {
@@ -289,22 +287,27 @@
             color: #c62828;
             padding: 15px;
             border-radius: 4px;
-            margin: 15px;
+            margin-bottom: 15px;
             border-left: 4px solid #c62828;
+        }
+
+        /* Larguras específicas das colunas */
+        th:nth-child(1), td:nth-child(1) {
+            width: 100px;
+        }
+
+        th:nth-child(2), td:nth-child(2) {
+            width: auto;
+            min-width: 400px;
+        }
+
+        th:nth-child(3), td:nth-child(3) {
+            width: 80px;
         }
 
         @media (max-width: 768px) {
             .search-bar {
                 flex-direction: column;
-            }
-            
-            .reload-section {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .pagination {
-                font-size: 12px;
             }
         }
     </style>
@@ -322,16 +325,16 @@
     <div class="container">
         <div class="header">
             <h1>🔍 Consulta de Materiais SAP</h1>
-            <p>Sistema automatizado de consulta</p>
+            <p>Sistema simplificado - 3 colunas essenciais</p>
         </div>
 
         <div class="controls">
             <div class="reload-section">
-                <span class="status-text" id="statusText">📂 Dados carregados</span>
+                <span class="status-text" id="statusText">📂 Carregando dados...</span>
                 <select id="encodingSelect" class="encoding-select">
                     <option value="UTF-8">UTF-8</option>
                     <option value="ISO-8859-1">ISO-8859-1</option>
-                    <option value="windows-1252">Windows-1252</option>
+                    <option value="windows-1252" selected>Windows-1252</option>
                 </select>
                 <button class="btn-reload" onclick="reloadData()">🔄 Recarregar</button>
             </div>
@@ -355,9 +358,15 @@
 
         <div class="table-wrapper">
             <table>
-                <thead id="tableHead"></thead>
+                <thead id="tableHead">
+                    <tr>
+                        <th onclick="sortBy('Centro')">Centro</th>
+                        <th onclick="sortBy('Descrição')">Descrição do Material</th>
+                        <th onclick="sortBy('Unidade')">Unidade</th>
+                    </tr>
+                </thead>
                 <tbody id="tableBody">
-                    <tr><td class="no-data">⏳ Carregando dados...</td></tr>
+                    <tr><td colspan="3" class="no-data">⏳ Carregando dados...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -380,7 +389,6 @@
     <script>
         let allData = [];
         let filteredData = [];
-        let headers = [];
         let currentPage = 1;
         let pageSize = 100;
         let totalPages = 1;
@@ -388,15 +396,20 @@
         let currentSortColumn = null;
         let sortAscending = true;
 
-        // Configuração - URL do arquivo
         const DATA_FILE = 'materiais.txt';
 
-        // Carregar dados automaticamente ao iniciar
+        // Mapeamento das colunas do arquivo original
+        const COLUMN_MAP = {
+            'Cen.': 'Centro',
+            'Centro': 'Centro',
+            'Texto breve material': 'Descrição',
+            'UMB': 'Unidade'
+        };
+
         window.addEventListener('DOMContentLoaded', () => {
             loadData();
         });
 
-        // Função principal de carregamento
         async function loadData() {
             const encoding = document.getElementById('encodingSelect').value;
             showLoading('Carregando arquivo...');
@@ -404,21 +417,19 @@
 
             try {
                 const response = await fetch(DATA_FILE, {
-                    cache: 'no-cache' // Força recarregar
+                    cache: 'no-cache'
                 });
 
                 if (!response.ok) {
-                    throw new Error(`Erro ao carregar: ${response.status}`);
+                    throw new Error(`Erro HTTP: ${response.status}`);
                 }
 
-                // Ler como ArrayBuffer para controlar encoding
                 const arrayBuffer = await response.arrayBuffer();
                 const decoder = new TextDecoder(encoding);
                 const text = decoder.decode(arrayBuffer);
 
                 updateLoadingText('Processando dados...');
                 
-                // Pequeno delay para UI não travar
                 setTimeout(() => {
                     parseData(text);
                     hideLoading();
@@ -433,12 +444,10 @@
             }
         }
 
-        // Recarregar dados
         function reloadData() {
             loadData();
         }
 
-        // Parser de dados
         function parseData(text) {
             const lines = text.split('\n').filter(line => line.trim());
             
@@ -447,84 +456,92 @@
                 return;
             }
             
-            // Primeira linha = headers
-            headers = lines[0].split('\t').map(h => h.trim()).filter(h => h);
+            // Primeira linha = headers completos
+            const fullHeaders = lines[0].split('\t').map(h => h.trim());
             
-            // Processar linhas
+            // Identificar índices das colunas que queremos
+            const centroIdx = fullHeaders.findIndex(h => h === 'Cen.' || h === 'Centro');
+            const descricaoIdx = fullHeaders.findIndex(h => h.includes('Texto breve') || h.includes('material'));
+            const unidadeIdx = fullHeaders.findIndex(h => h === 'UMB');
+
+            if (centroIdx === -1 || descricaoIdx === -1 || unidadeIdx === -1) {
+                showError('❌ Não foi possível identificar as colunas. Verifique o formato do arquivo.');
+                console.log('Headers encontrados:', fullHeaders);
+                console.log('Índices:', {centroIdx, descricaoIdx, unidadeIdx});
+                return;
+            }
+
+            // Processar dados - apenas 3 colunas
             allData = [];
             for (let i = 1; i < lines.length; i++) {
                 const values = lines[i].split('\t');
-                const row = {};
                 
-                for (let j = 0; j < headers.length; j++) {
-                    row[headers[j]] = (values[j] || '').trim();
-                }
-                
-                // Só adiciona se tiver pelo menos um valor
-                if (Object.values(row).some(v => v !== '')) {
-                    allData.push(row);
+                const centro = (values[centroIdx] || '').trim();
+                const descricao = (values[descricaoIdx] || '').trim();
+                const unidade = (values[unidadeIdx] || '').trim();
+
+                // Só adiciona se tiver dados válidos
+                if (centro || descricao || unidade) {
+                    allData.push({
+                        'Centro': centro,
+                        'Descrição': descricao,
+                        'Unidade': unidade
+                    });
                 }
             }
 
             filteredData = [...allData];
             createQuickFilters();
-            createTableHeaders();
             updateDisplay();
         }
 
-        // Criar filtros rápidos
         function createQuickFilters() {
             const container = document.getElementById('quickFilters');
             container.innerHTML = '';
 
-            const priorityColumns = ['Centro', 'Cen.', 'TMat', 'Grp.merc.', 'UMB'];
+            // Filtro para Centro
+            const centros = [...new Set(allData.map(row => row.Centro))]
+                .filter(v => v)
+                .sort();
             
-            priorityColumns.forEach(col => {
-                if (!headers.includes(col)) return;
+            if (centros.length > 1) {
+                const select = document.createElement('select');
+                select.innerHTML = '<option value="">Todos os Centros</option>';
                 
-                const values = [...new Set(allData.map(row => row[col]))]
-                    .filter(v => v)
-                    .sort();
+                centros.forEach(val => {
+                    const opt = document.createElement('option');
+                    opt.value = val;
+                    opt.textContent = val;
+                    select.appendChild(opt);
+                });
                 
-                if (values.length > 1 && values.length < 150) {
-                    const select = document.createElement('select');
-                    const option = document.createElement('option');
-                    option.value = '';
-                    option.textContent = `Todos ${col}`;
-                    select.appendChild(option);
-                    
-                    values.forEach(val => {
-                        const opt = document.createElement('option');
-                        opt.value = val;
-                        opt.textContent = val;
-                        select.appendChild(opt);
-                    });
-                    
-                    select.dataset.column = col;
-                    select.onchange = applyFilters;
-                    container.appendChild(select);
-                }
-            });
+                select.dataset.column = 'Centro';
+                select.onchange = applyFilters;
+                container.appendChild(select);
+            }
+
+            // Filtro para Unidade
+            const unidades = [...new Set(allData.map(row => row.Unidade))]
+                .filter(v => v)
+                .sort();
+            
+            if (unidades.length > 1 && unidades.length < 50) {
+                const select = document.createElement('select');
+                select.innerHTML = '<option value="">Todas as Unidades</option>';
+                
+                unidades.forEach(val => {
+                    const opt = document.createElement('option');
+                    opt.value = val;
+                    opt.textContent = val;
+                    select.appendChild(opt);
+                });
+                
+                select.dataset.column = 'Unidade';
+                select.onchange = applyFilters;
+                container.appendChild(select);
+            }
         }
 
-        // Criar cabeçalhos da tabela
-        function createTableHeaders() {
-            const thead = document.getElementById('tableHead');
-            thead.innerHTML = '';
-            
-            const tr = document.createElement('tr');
-            headers.forEach(header => {
-                const th = document.createElement('th');
-                th.textContent = header;
-                th.title = 'Clique para ordenar';
-                th.onclick = () => sortBy(header);
-                th.dataset.column = header;
-                tr.appendChild(th);
-            });
-            thead.appendChild(tr);
-        }
-
-        // Filtros
         document.getElementById('globalSearch').addEventListener('input', function() {
             clearTimeout(filterTimeout);
             filterTimeout = setTimeout(() => applyFilters(), 300);
@@ -543,8 +560,8 @@
             filteredData = allData.filter(row => {
                 // Busca global
                 if (searchTerm) {
-                    const found = headers.some(h => 
-                        String(row[h]).toLowerCase().includes(searchTerm)
+                    const found = Object.values(row).some(val => 
+                        String(val).toLowerCase().includes(searchTerm)
                     );
                     if (!found) return false;
                 }
@@ -563,19 +580,12 @@
             updateDisplay();
         }
 
-        // Renderizar página
         function renderPage() {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
 
             if (filteredData.length === 0) {
-                const tr = document.createElement('tr');
-                const td = document.createElement('td');
-                td.colSpan = headers.length;
-                td.className = 'no-data';
-                td.textContent = '❌ Nenhum material encontrado';
-                tr.appendChild(td);
-                tbody.appendChild(tr);
+                tbody.innerHTML = '<tr><td colspan="3" class="no-data">❌ Nenhum material encontrado</td></tr>';
                 return;
             }
 
@@ -587,18 +597,25 @@
 
             pageData.forEach(row => {
                 const tr = document.createElement('tr');
-                headers.forEach(header => {
-                    const td = document.createElement('td');
-                    td.textContent = row[header];
-                    tr.appendChild(td);
-                });
+                
+                const tdCentro = document.createElement('td');
+                tdCentro.textContent = row.Centro;
+                tr.appendChild(tdCentro);
+                
+                const tdDesc = document.createElement('td');
+                tdDesc.textContent = row.Descrição;
+                tr.appendChild(tdDesc);
+                
+                const tdUni = document.createElement('td');
+                tdUni.textContent = row.Unidade;
+                tr.appendChild(tdUni);
+                
                 fragment.appendChild(tr);
             });
 
             tbody.appendChild(fragment);
         }
 
-        // Ordenação
         function sortBy(column) {
             if (currentSortColumn === column) {
                 sortAscending = !sortAscending;
@@ -607,35 +624,26 @@
                 sortAscending = true;
             }
 
-            const isNumeric = !isNaN(parseFloat(filteredData[0]?.[column]));
-            
             filteredData.sort((a, b) => {
-                let valA = a[column];
-                let valB = b[column];
+                let valA = a[column] || '';
+                let valB = b[column] || '';
 
-                if (isNumeric) {
-                    valA = parseFloat(valA) || 0;
-                    valB = parseFloat(valB) || 0;
-                    return sortAscending ? valA - valB : valB - valA;
-                }
-                
-                const comparison = String(valA).localeCompare(String(valB), 'pt-BR');
+                const comparison = valA.toString().localeCompare(valB.toString(), 'pt-BR', {numeric: true});
                 return sortAscending ? comparison : -comparison;
             });
 
-            // Atualizar visual do cabeçalho
             document.querySelectorAll('th').forEach(th => {
                 th.classList.remove('sorted', 'asc');
-                if (th.dataset.column === column) {
-                    th.classList.add('sorted');
-                    if (sortAscending) th.classList.add('asc');
-                }
             });
+
+            const ths = document.querySelectorAll('th');
+            const colIndex = column === 'Centro' ? 0 : column === 'Descrição' ? 1 : 2;
+            ths[colIndex].classList.add('sorted');
+            if (sortAscending) ths[colIndex].classList.add('asc');
 
             renderPage();
         }
 
-        // Atualizar display
         function updateDisplay() {
             totalPages = Math.ceil(filteredData.length / pageSize) || 1;
             currentPage = Math.min(currentPage, totalPages);
@@ -645,14 +653,12 @@
             updatePagination();
         }
 
-        // Estatísticas
         function updateStats() {
             document.getElementById('totalRecords').textContent = allData.length.toLocaleString('pt-BR');
             document.getElementById('filteredRecords').textContent = filteredData.length.toLocaleString('pt-BR');
             document.getElementById('currentPageInfo').textContent = `${currentPage} de ${totalPages}`;
         }
 
-        // Paginação
         function updatePagination() {
             document.getElementById('pageNumber').textContent = currentPage;
             document.getElementById('totalPages').textContent = totalPages;
@@ -677,7 +683,6 @@
             updateDisplay();
         }
 
-        // Limpar filtros
         function clearFilters() {
             document.getElementById('globalSearch').value = '';
             document.querySelectorAll('#quickFilters select').forEach(s => s.value = '');
@@ -686,18 +691,17 @@
             updateDisplay();
         }
 
-        // Exportar
         function exportToExcel() {
             if (filteredData.length === 0) {
                 alert('❌ Não há dados para exportar!');
                 return;
             }
 
-            let csv = '\uFEFF'; // BOM UTF-8
-            csv += headers.join('\t') + '\n';
+            let csv = '\uFEFF';
+            csv += 'Centro\tDescrição do Material\tUnidade\n';
             
             filteredData.forEach(row => {
-                csv += headers.map(h => row[h]).join('\t') + '\n';
+                csv += `${row.Centro}\t${row.Descrição}\t${row.Unidade}\n`;
             });
 
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -707,7 +711,6 @@
             link.click();
         }
 
-        // Utilidades de UI
         function showLoading(text = 'Carregando...') {
             document.getElementById('loadingOverlay').classList.remove('hidden');
             document.getElementById('loadingText').textContent = text;
