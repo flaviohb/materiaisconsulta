@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consulta Materiais SAP</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            padding: 15px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            background: #1976d2;
+            color: white;
+            padding: 20px;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .header h1 {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }
+
+        .controls {
+            padding: 15px;
+            background: #fafafa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .reload-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 4px;
+        }
+
+        .encoding-select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .btn-reload {
+            background: #ff9800;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .btn-reload:hover {
+            background: #f57c00;
+        }
+
+        .status-text {
+            flex: 1;
+            color: #1976d2;
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .search-bar input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+            font-weight: bold;
+        }
+
+        .btn-export {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-export:hover {
+            background: #45a049;
+        }
+
+        .btn-clear {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #da190b;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 15px;
+            background: #e3f2fd;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        th {
+            background: #424242;
+            color: white;
+            padding: 10px 8px;
+            text-align: left;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 12px;
+        }
+
+        th:hover {
+            background: #616161;
+        }
+
+        th.sorted::after {
+            content: ' ▼';
+        }
+
+        th.sorted.asc::after {
+            content: ' ▲';
+        }
+
+        td {
+            padding: 8px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 12px;
+        }
+
+        tbody tr:hover {
+            background: #f5f5f5;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #fafafa;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #757575;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            border-top: 1px solid #e0e0e0;
+            flex-wrap: wrap;
+        }
+
+        .pagination button {
+            padding: 8px 15px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: #1976d2;
+            color: white;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .loading-overlay.hidden {
+            display: none;
+        }
+
+        .loading-content {
+            background: white;
+            padding: 30px 50px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1976d2;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .quick-filters {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .quick-filters select {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+            background: white;
+        }
+
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px;
+            border-left: 4px solid #c62828;
+        }
+
+        @media (max-width: 768px) {
+            .search-bar {
+                flex-direction: column;
+            }
+            
+            .reload-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .pagination {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <h3>Carregando dados...</h3>
+            <p id="loadingText">Aguarde um momento</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Consulta de Materiais SAP</h1>
+            <p>Sistema automatizado de consulta</p>
+        </div>
+
+        <div class="controls">
+            <div class="reload-section">
+                <span class="status-text" id="statusText">📂 Dados carregados</span>
+                <select id="encodingSelect" class="encoding-select">
+                    <option value="UTF-8">UTF-8</option>
+                    <option value="ISO-8859-1">ISO-8859-1</option>
+                    <option value="windows-1252">Windows-1252</option>
+                </select>
+                <button class="btn-reload" onclick="reloadData()">🔄 Recarregar</button>
+            </div>
+
+            <div id="errorMessage"></div>
+
+            <div class="search-bar">
+                <input type="text" id="globalSearch" placeholder="🔎 Buscar em todos os campos...">
+                <button class="btn btn-export" onclick="exportToExcel()">📊 Exportar</button>
+                <button class="btn btn-clear" onclick="clearFilters()">🗑️ Limpar</button>
+            </div>
+
+            <div class="quick-filters" id="quickFilters"></div>
+        </div>
+
+        <div class="stats">
+            <div>Total: <span id="totalRecords">0</span></div>
+            <div>Filtrados: <span id="filteredRecords">0</span></div>
+            <div>Página: <span id="currentPageInfo">0 de 0</span></div>
+        </div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead id="tableHead"></thead>
+                <tbody id="tableBody">
+                    <tr><td class="no-data">⏳ Carregando dados...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination">
+            <button onclick="goToPage(1)">⏮️ Primeiro</button>
+            <button onclick="goToPage(currentPage - 1)">◀️ Anterior</button>
+            <span>Página <strong id="pageNumber">1</strong> de <strong id="totalPages">1</strong></span>
+            <button onclick="goToPage(currentPage + 1)">Próximo ▶️</button>
+            <button onclick="goToPage(totalPages)">Último ⏭️</button>
+            <select id="pageSize" onchange="changePageSize()">
+                <option value="50">50/página</option>
+                <option value="100" selected>100/página</option>
+                <option value="200">200/página</option>
+                <option value="500">500/página</option>
+            </select>
+        </div>
+    </div>
+
+    <script>
+        let allData = [];
+        let filteredData = [];
+        let headers = [];
+        let currentPage = 1;
+        let pageSize = 100;
+        let totalPages = 1;
+        let filterTimeout = null;
+        let currentSortColumn = null;
+        let sortAscending = true;
+
+        // Configuração - URL do arquivo
+        const DATA_FILE = 'materiais.txt';
+
+        // Carregar dados automaticamente ao iniciar
+        window.addEventListener('DOMContentLoaded', () => {
+            loadData();
+        });
+
+        // Função principal de carregamento
+        async function loadData() {
+            const encoding = document.getElementById('encodingSelect').value;
+            showLoading('Carregando arquivo...');
+            hideError();
+
+            try {
+                const response = await fetch(DATA_FILE, {
+                    cache: 'no-cache' // Força recarregar
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erro ao carregar: ${response.status}`);
+                }
+
+                // Ler como ArrayBuffer para controlar encoding
+                const arrayBuffer = await response.arrayBuffer();
+                const decoder = new TextDecoder(encoding);
+                const text = decoder.decode(arrayBuffer);
+
+                updateLoadingText('Processando dados...');
+                
+                // Pequeno delay para UI não travar
+                setTimeout(() => {
+                    parseData(text);
+                    hideLoading();
+                    updateStatus(`✅ ${allData.length} materiais carregados`);
+                }, 100);
+
+            } catch (error) {
+                hideLoading();
+                showError(`❌ Erro ao carregar materiais.txt: ${error.message}`);
+                updateStatus('❌ Erro no carregamento');
+                console.error('Erro:', error);
+            }
+        }
+
+        // Recarregar dados
+        function reloadData() {
+            loadData();
+        }
+
+        // Parser de dados
+        function parseData(text) {
+            const lines = text.split('\n').filter(line => line.trim());
+            
+            if (lines.length === 0) {
+                showError('❌ Arquivo vazio!');
+                return;
+            }
+            
+            // Primeira linha = headers
+            headers = lines[0].split('\t').map(h => h.trim()).filter(h => h);
+            
+            // Processar linhas
+            allData = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split('\t');
+                const row = {};
+                
+                for (let j = 0; j < headers.length; j++) {
+                    row[headers[j]] = (values[j] || '').trim();
+                }
+                
+                // Só adiciona se tiver pelo menos um valor
+                if (Object.values(row).some(v => v !== '')) {
+                    allData.push(row);
+                }
+            }
+
+            filteredData = [...allData];
+            createQuickFilters();
+            createTableHeaders();
+            updateDisplay();
+        }
+
+        // Criar filtros rápidos
+        function createQuickFilters() {
+            const container = document.getElementById('quickFilters');
+            container.innerHTML = '';
+
+            const priorityColumns = ['Centro', 'Cen.', 'TMat', 'Grp.merc.', 'UMB'];
+            
+            priorityColumns.forEach(col => {
+                if (!headers.includes(col)) return;
+                
+                const values = [...new Set(allData.map(row => row[col]))]
+                    .filter(v => v)
+                    .sort();
+                
+                if (values.length > 1 && values.length < 150) {
+                    const select = document.createElement('select');
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = `Todos ${col}`;
+                    select.appendChild(option);
+                    
+                    values.forEach(val => {
+                        const opt = document.createElement('option');
+                        opt.value = val;
+                        opt.textContent = val;
+                        select.appendChild(opt);
+                    });
+                    
+                    select.dataset.column = col;
+                    select.onchange = applyFilters;
+                    container.appendChild(select);
+                }
+            });
+        }
+
+        // Criar cabeçalhos da tabela
+        function createTableHeaders() {
+            const thead = document.getElementById('tableHead');
+            thead.innerHTML = '';
+            
+            const tr = document.createElement('tr');
+            headers.forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                th.title = 'Clique para ordenar';
+                th.onclick = () => sortBy(header);
+                th.dataset.column = header;
+                tr.appendChild(th);
+            });
+            thead.appendChild(tr);
+        }
+
+        // Filtros
+        document.getElementById('globalSearch').addEventListener('input', function() {
+            clearTimeout(filterTimeout);
+            filterTimeout = setTimeout(() => applyFilters(), 300);
+        });
+
+        function applyFilters() {
+            const searchTerm = document.getElementById('globalSearch').value.toLowerCase();
+            const quickFilters = {};
+            
+            document.querySelectorAll('#quickFilters select').forEach(select => {
+                if (select.value) {
+                    quickFilters[select.dataset.column] = select.value;
+                }
+            });
+
+            filteredData = allData.filter(row => {
+                // Busca global
+                if (searchTerm) {
+                    const found = headers.some(h => 
+                        String(row[h]).toLowerCase().includes(searchTerm)
+                    );
+                    if (!found) return false;
+                }
+
+                // Filtros específicos
+                for (let col in quickFilters) {
+                    if (row[col] !== quickFilters[col]) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+
+            currentPage = 1;
+            updateDisplay();
+        }
+
+        // Renderizar página
+        function renderPage() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            if (filteredData.length === 0) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = headers.length;
+                td.className = 'no-data';
+                td.textContent = '❌ Nenhum material encontrado';
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+                return;
+            }
+
+            const start = (currentPage - 1) * pageSize;
+            const end = Math.min(start + pageSize, filteredData.length);
+            const pageData = filteredData.slice(start, end);
+
+            const fragment = document.createDocumentFragment();
+
+            pageData.forEach(row => {
+                const tr = document.createElement('tr');
+                headers.forEach(header => {
+                    const td = document.createElement('td');
+                    td.textContent = row[header];
+                    tr.appendChild(td);
+                });
+                fragment.appendChild(tr);
+            });
+
+            tbody.appendChild(fragment);
+        }
+
+        // Ordenação
+        function sortBy(column) {
+            if (currentSortColumn === column) {
+                sortAscending = !sortAscending;
+            } else {
+                currentSortColumn = column;
+                sortAscending = true;
+            }
+
+            const isNumeric = !isNaN(parseFloat(filteredData[0]?.[column]));
+            
+            filteredData.sort((a, b) => {
+                let valA = a[column];
+                let valB = b[column];
+
+                if (isNumeric) {
+                    valA = parseFloat(valA) || 0;
+                    valB = parseFloat(valB) || 0;
+                    return sortAscending ? valA - valB : valB - valA;
+                }
+                
+                const comparison = String(valA).localeCompare(String(valB), 'pt-BR');
+                return sortAscending ? comparison : -comparison;
+            });
+
+            // Atualizar visual do cabeçalho
+            document.querySelectorAll('th').forEach(th => {
+                th.classList.remove('sorted', 'asc');
+                if (th.dataset.column === column) {
+                    th.classList.add('sorted');
+                    if (sortAscending) th.classList.add('asc');
+                }
+            });
+
+            renderPage();
+        }
+
+        // Atualizar display
+        function updateDisplay() {
+            totalPages = Math.ceil(filteredData.length / pageSize) || 1;
+            currentPage = Math.min(currentPage, totalPages);
+            
+            renderPage();
+            updateStats();
+            updatePagination();
+        }
+
+        // Estatísticas
+        function updateStats() {
+            document.getElementById('totalRecords').textContent = allData.length.toLocaleString('pt-BR');
+            document.getElementById('filteredRecords').textContent = filteredData.length.toLocaleString('pt-BR');
+            document.getElementById('currentPageInfo').textContent = `${currentPage} de ${totalPages}`;
+        }
+
+        // Paginação
+        function updatePagination() {
+            document.getElementById('pageNumber').textContent = currentPage;
+            document.getElementById('totalPages').textContent = totalPages;
+            
+            const buttons = document.querySelectorAll('.pagination button');
+            buttons[0].disabled = currentPage === 1;
+            buttons[1].disabled = currentPage === 1;
+            buttons[2].disabled = currentPage === totalPages;
+            buttons[3].disabled = currentPage === totalPages;
+        }
+
+        function goToPage(page) {
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+            renderPage();
+            updatePagination();
+        }
+
+        function changePageSize() {
+            pageSize = parseInt(document.getElementById('pageSize').value);
+            currentPage = 1;
+            updateDisplay();
+        }
+
+        // Limpar filtros
+        function clearFilters() {
+            document.getElementById('globalSearch').value = '';
+            document.querySelectorAll('#quickFilters select').forEach(s => s.value = '');
+            filteredData = [...allData];
+            currentPage = 1;
+            updateDisplay();
+        }
+
+        // Exportar
+        function exportToExcel() {
+            if (filteredData.length === 0) {
+                alert('❌ Não há dados para exportar!');
+                return;
+            }
+
+            let csv = '\uFEFF'; // BOM UTF-8
+            csv += headers.join('\t') + '\n';
+            
+            filteredData.forEach(row => {
+                csv += headers.map(h => row[h]).join('\t') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `materiais_${new Date().toISOString().slice(0,10)}.xls`;
+            link.click();
+        }
+
+        // Utilidades de UI
+        function showLoading(text = 'Carregando...') {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            document.getElementById('loadingText').textContent = text;
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+
+        function updateLoadingText(text) {
+            document.getElementById('loadingText').textContent = text;
+        }
+
+        function updateStatus(text) {
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+        }
+
+        function hideError() {
+            document.getElementById('errorMessage').className = '';
+            document.getElementById('errorMessage').textContent = '';
+        }
+    </script>
+</body>
+</html>
