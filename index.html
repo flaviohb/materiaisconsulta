@@ -446,49 +446,29 @@
         }
 
         // Parser multi-linha otimizado
-        function parseData(text) {
-            const lines = text.split('\n');
-            allData = [];
-            
-            let currentMaterial = null;
-            let descriptionLines = [];
+       // Substitua a função parseData() existente por esta:
 
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                
-                // Ignora linhas vazias ou cabeçalhos
-                if (!line || line.includes('ZMRT0140') || line.includes('Material	Grupo')) {
-                    continue;
-                }
+function parseData(text) {
+    const lines = text.split('\n');
+    allData = [];
+    
+    let currentMaterial = null;
+    let descriptionLines = [];
 
-                // Detecta início de novo material (6 dígitos no início)
-                const match = line.match(/^(\d{6})\s+\d+\s+[XU]?\s+(.+?)\s+([A-Z]{4})\s+([A-Z]{2,3})$/);
-                
-                if (match) {
-                    // Salva material anterior se existir
-                    if (currentMaterial) {
-                        allData.push({
-                            Material: currentMaterial.codigo,
-                            Descrição: descriptionLines.join('\n').trim(),
-                            DescriçãoNormalizada: normalizeText(descriptionLines.join(' ')),
-                            Unidade: currentMaterial.unidade
-                        });
-                    }
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Ignora linhas de cabeçalho/vazias
+        if (!line.trim() || 
+            line.includes('ZMRT0140') || 
+            line.includes('Descrição Completa') ||
+            line.includes('Material	Grupo	Status')) {
+            continue;
+        }
 
-                    // Inicia novo material
-                    currentMaterial = {
-                        codigo: match[1],
-                        unidade: match[4]
-                    };
-                    descriptionLines = [match[2]];
-                } 
-                // Linha de continuação da descrição
-                else if (currentMaterial && line) {
-                    descriptionLines.push(line);
-                }
-            }
-
-            // Salva último material
+        // Detecta novo material: linha começa com 6 dígitos
+        if (/^\d{6}\t/.test(line)) {
+            // Salva material anterior
             if (currentMaterial) {
                 allData.push({
                     Material: currentMaterial.codigo,
@@ -498,9 +478,38 @@
                 });
             }
 
-            filteredData = [...allData];
-            updateDisplay();
+            // Parse da linha do novo material
+            const parts = line.split('\t').filter(p => p.trim());
+            
+            currentMaterial = {
+                codigo: parts[0],  // 000026
+                unidade: parts[parts.length - 1]  // CJ, PEÇ, etc (última coluna)
+            };
+            
+            // Descrição começa na posição 3 (após Material, Grupo, Status)
+            // Vai até antes das 2 últimas colunas (Tipo e Unidade)
+            const descStart = parts.slice(3, -2).join(' ').trim();
+            descriptionLines = [descStart];
+        } 
+        // Linha de continuação: começa com tabs
+        else if (currentMaterial && line.trim()) {
+            descriptionLines.push(line.trim());
         }
+    }
+
+    // Salva último material
+    if (currentMaterial) {
+        allData.push({
+            Material: currentMaterial.codigo,
+            Descrição: descriptionLines.join('\n').trim(),
+            DescriçãoNormalizada: normalizeText(descriptionLines.join(' ')),
+            Unidade: currentMaterial.unidade
+        });
+    }
+
+    filteredData = [...allData];
+    updateDisplay();
+}
 
         // Normalização de texto para busca inteligente
         function normalizeText(text) {
