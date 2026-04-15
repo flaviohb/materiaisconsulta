@@ -18,7 +18,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1300px;
             margin: 0 auto;
             background: white;
             border-radius: 8px;
@@ -293,16 +293,22 @@
 
         /* Larguras específicas das colunas */
         th:nth-child(1), td:nth-child(1) {
-            width: 100px;
+            width: 120px;
+            font-weight: 600;
         }
 
         th:nth-child(2), td:nth-child(2) {
-            width: auto;
-            min-width: 400px;
+            width: 100px;
         }
 
         th:nth-child(3), td:nth-child(3) {
+            width: auto;
+            min-width: 350px;
+        }
+
+        th:nth-child(4), td:nth-child(4) {
             width: 80px;
+            text-align: center;
         }
 
         @media (max-width: 768px) {
@@ -325,7 +331,7 @@
     <div class="container">
         <div class="header">
             <h1>🔍 Consulta de Materiais SAP</h1>
-            <p>Sistema simplificado - 3 colunas essenciais</p>
+            <p>Sistema completo de consulta de materiais</p>
         </div>
 
         <div class="controls">
@@ -342,7 +348,7 @@
             <div id="errorMessage"></div>
 
             <div class="search-bar">
-                <input type="text" id="globalSearch" placeholder="🔎 Buscar em todos os campos...">
+                <input type="text" id="globalSearch" placeholder="🔎 Buscar por material, descrição, centro ou unidade...">
                 <button class="btn btn-export" onclick="exportToExcel()">📊 Exportar</button>
                 <button class="btn btn-clear" onclick="clearFilters()">🗑️ Limpar</button>
             </div>
@@ -360,13 +366,14 @@
             <table>
                 <thead id="tableHead">
                     <tr>
+                        <th onclick="sortBy('Material')">Material</th>
                         <th onclick="sortBy('Centro')">Centro</th>
                         <th onclick="sortBy('Descrição')">Descrição do Material</th>
                         <th onclick="sortBy('Unidade')">Unidade</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
-                    <tr><td colspan="3" class="no-data">⏳ Carregando dados...</td></tr>
+                    <tr><td colspan="4" class="no-data">⏳ Carregando dados...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -397,14 +404,6 @@
         let sortAscending = true;
 
         const DATA_FILE = 'materiais.txt';
-
-        // Mapeamento das colunas do arquivo original
-        const COLUMN_MAP = {
-            'Cen.': 'Centro',
-            'Centro': 'Centro',
-            'Texto breve material': 'Descrição',
-            'UMB': 'Unidade'
-        };
 
         window.addEventListener('DOMContentLoaded', () => {
             loadData();
@@ -459,30 +458,34 @@
             // Primeira linha = headers completos
             const fullHeaders = lines[0].split('\t').map(h => h.trim());
             
-            // Identificar índices das colunas que queremos
+            // Identificar índices das colunas
+            const materialIdx = fullHeaders.findIndex(h => h === 'Material');
             const centroIdx = fullHeaders.findIndex(h => h === 'Cen.' || h === 'Centro');
             const descricaoIdx = fullHeaders.findIndex(h => h.includes('Texto breve') || h.includes('material'));
             const unidadeIdx = fullHeaders.findIndex(h => h === 'UMB');
 
-            if (centroIdx === -1 || descricaoIdx === -1 || unidadeIdx === -1) {
-                showError('❌ Não foi possível identificar as colunas. Verifique o formato do arquivo.');
-                console.log('Headers encontrados:', fullHeaders);
-                console.log('Índices:', {centroIdx, descricaoIdx, unidadeIdx});
+            console.log('Índices encontrados:', {materialIdx, centroIdx, descricaoIdx, unidadeIdx});
+            console.log('Headers:', fullHeaders);
+
+            if (materialIdx === -1 || centroIdx === -1 || descricaoIdx === -1 || unidadeIdx === -1) {
+                showError('❌ Não foi possível identificar as colunas necessárias. Verifique o formato do arquivo.');
                 return;
             }
 
-            // Processar dados - apenas 3 colunas
+            // Processar dados - 4 colunas
             allData = [];
             for (let i = 1; i < lines.length; i++) {
                 const values = lines[i].split('\t');
                 
+                const material = (values[materialIdx] || '').trim();
                 const centro = (values[centroIdx] || '').trim();
                 const descricao = (values[descricaoIdx] || '').trim();
                 const unidade = (values[unidadeIdx] || '').trim();
 
-                // Só adiciona se tiver dados válidos
-                if (centro || descricao || unidade) {
+                // Só adiciona se tiver material ou descrição
+                if (material || descricao) {
                     allData.push({
+                        'Material': material,
                         'Centro': centro,
                         'Descrição': descricao,
                         'Unidade': unidade
@@ -585,7 +588,7 @@
             tbody.innerHTML = '';
 
             if (filteredData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" class="no-data">❌ Nenhum material encontrado</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="no-data">❌ Nenhum material encontrado</td></tr>';
                 return;
             }
 
@@ -597,6 +600,10 @@
 
             pageData.forEach(row => {
                 const tr = document.createElement('tr');
+                
+                const tdMaterial = document.createElement('td');
+                tdMaterial.textContent = row.Material;
+                tr.appendChild(tdMaterial);
                 
                 const tdCentro = document.createElement('td');
                 tdCentro.textContent = row.Centro;
@@ -628,6 +635,13 @@
                 let valA = a[column] || '';
                 let valB = b[column] || '';
 
+                // Ordenação numérica para Material
+                if (column === 'Material') {
+                    const numA = parseInt(valA) || 0;
+                    const numB = parseInt(valB) || 0;
+                    return sortAscending ? numA - numB : numB - numA;
+                }
+
                 const comparison = valA.toString().localeCompare(valB.toString(), 'pt-BR', {numeric: true});
                 return sortAscending ? comparison : -comparison;
             });
@@ -637,7 +651,7 @@
             });
 
             const ths = document.querySelectorAll('th');
-            const colIndex = column === 'Centro' ? 0 : column === 'Descrição' ? 1 : 2;
+            const colIndex = column === 'Material' ? 0 : column === 'Centro' ? 1 : column === 'Descrição' ? 2 : 3;
             ths[colIndex].classList.add('sorted');
             if (sortAscending) ths[colIndex].classList.add('asc');
 
@@ -698,10 +712,10 @@
             }
 
             let csv = '\uFEFF';
-            csv += 'Centro\tDescrição do Material\tUnidade\n';
+            csv += 'Material\tCentro\tDescrição\tUnidade\n';
             
             filteredData.forEach(row => {
-                csv += `${row.Centro}\t${row.Descrição}\t${row.Unidade}\n`;
+                csv += `${row.Material}\t${row.Centro}\t${row.Descrição}\t${row.Unidade}\n`;
             });
 
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
